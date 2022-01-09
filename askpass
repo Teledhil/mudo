@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -uo pipefail
+
+LANG=C
+
+function echoerr {
+  echo "$@" 1>&2
+}
+
+# Get active mics, mute them and store them on a list to restore thier state
+# after the password is entered.
+MICS_TO_BE_RESTORED=()
+CANDIDATES=$(pactl list sources short | grep alsa_input | grep 'RUNNING' | awk '{print $1}')
+for candidate in $CANDIDATES
+do
+  if pactl list sources | grep -A 8 "Source #$candidate" | grep -q 'Mute: no'
+  then
+    echoerr "Muting $(pactl list sources | grep -A 60 "Source #${candidate}" | grep "alsa.long_card_name" | awk '{$1=$2=""; print $0}' | xargs)"
+    MICS_TO_BE_RESTORED+=$candidate
+    pactl set-source-mute $candidate "1"
+  fi
+done
+
+# Ask for the password.
+read -s -p "Password:" pass
+
+# New line on stderr so command ouput is on a new line.
+echoerr ""
+
+# Restore the mics that were muted to their previous state (unmuted).
+len=${#MICS_TO_BE_RESTORED[@]}
+for (( i=0; i<$len; i++ ))
+do
+  echoerr "Unmuting $(pactl list sources | grep -A 60 "Source #${candidate}" | grep "alsa.long_card_name" | awk '{$1=$2=""; print $0}' | xargs)"
+  pactl set-source-mute ${MICS_TO_BE_RESTORED[$i]} "0"
+done
+
+echo "$pass"
